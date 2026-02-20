@@ -1,2 +1,0 @@
-# cooperamigocooperativa
-Cooperamigó
