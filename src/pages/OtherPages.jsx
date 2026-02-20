@@ -61,6 +61,14 @@ export function Alertas() {
   )
 }
 
+function diaDeFecha(fechaStr) {
+  if (!fechaStr) return null
+  const s = String(fechaStr)
+  if (s.includes('-')) return parseInt(s.split('-')[2], 10)
+  if (s.includes('/')) return parseInt(s.split('/')[0], 10)
+  return null
+}
+
 // ───── COBROS HOY ─────
 // raportes = día del mes en que vence el pago recurrente de cada crédito
 export function CobrosHoy({ onNav }) {
