@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Afacad', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+}
+
+@layer components {
+  .page-enter {
+    animation: pageEnter 0.25s ease both;
+  }
+  @keyframes pageEnter {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .kpi-card {
+    @apply bg-white rounded-xl border border-surface-200 p-5 shadow-card hover:shadow-card-hover transition-shadow duration-200 relative overflow-hidden;
+  }
+
+  .data-table th {
+    @apply px-4 py-3 text-left text-[10px] font-mono font-medium tracking-widest uppercase text-slate-400 bg-surface-50 border-b border-surface-200 cursor-pointer select-none whitespace-nowrap;
+  }
+  .data-table td {
+    @apply px-4 py-3 text-sm border-b border-surface-100 align-middle;
+  }
+  .data-table tr:last-child td { @apply border-b-0; }
+  .data-table tr:hover td { @apply bg-blue-50/40; }
+
+  .input-base {
+    @apply w-full bg-white border border-surface-200 text-slate-800 placeholder-slate-400 rounded-lg px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 text-white font-display font-semibold text-sm px-4 py-2.5 rounded-lg transition-all duration-150 hover:shadow-md hover:-translate-y-px active:translate-y-0;
+  }
+  .btn-outline {
+    @apply inline-flex items-center gap-1.5 bg-white hover:bg-surface-50 text-slate-600 font-display font-medium text-sm px-4 py-2.5 rounded-lg border border-surface-200 hover:border-surface-300 transition-all duration-150;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-display font-medium text-sm px-4 py-2.5 rounded-lg border border-red-200 transition-all duration-150;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+}
