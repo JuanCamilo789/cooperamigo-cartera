@@ -82,7 +82,7 @@ export function CobrosHoy({ onNav }) {
     }
     // Fallback: usar el día de fechadesem
     if (r.fechadesem) {
-      return new Date(r.fechadesem).getUTCDate() === diaHoy
+      return diaDeFecha(r.fechadesem) === diaHoy
     }
     return false
   }).sort((a,b) => b.anualidad - a.anualidad)
