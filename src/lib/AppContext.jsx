@@ -128,6 +128,12 @@ export function AppProvider({ children }) {
     return true
   }, [showToast])
 
+  const toggleGestionado = useCallback(async (pagare, valor) => {
+    const { error } = await sb.from('cartera').update({ gestionado: valor }).eq('pagare', pagare)
+    if (error) { showToast('Error: ' + error.message, 'err'); return }
+    setCartera(prev => prev.map(r => r.pagare === pagare ? { ...r, gestionado: valor } : r))
+  }, [showToast])
+
   // compute reusable portfolio statistics
   const stats = useMemo(() => {
     const totalCap = cartera.reduce((s, r) => s + (r.saldocapit || 0), 0)
@@ -170,6 +176,7 @@ export function AppProvider({ children }) {
       saveGestion,
       updateGestion,
       deleteGestion,
+      toggleGestionado,
       stats,
     }}>
       {children}
