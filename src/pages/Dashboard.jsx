@@ -44,7 +44,7 @@ export default function Dashboard({ onNav }) {
   const diaHoy = new Date().getDate()
   const cobrosHoy = cartera.filter(r => {
     if (r.raportes) return Number(r.raportes) === diaHoy
-    if (r.fechadesem) return new Date(r.fechadesem).getUTCDate() === diaHoy
+    if (r.fechadesem) return String(r.fechadesem).split('-')[2] && parseInt(String(r.fechadesem).split('-')[2]) === diaHoy
     return false
   })
 
