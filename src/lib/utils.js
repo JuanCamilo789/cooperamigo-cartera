@@ -79,3 +79,19 @@ export const dlCSV = (rows, name) => {
   a.download = name
   a.click()
 }
+export const diaDeFecha = (fechaStr) => {
+  if (!fechaStr && fechaStr !== 0) return null
+  const s = String(fechaStr).trim()
+  // numeric day only (e.g. "20")
+  if (/^\d{1,2}$/.test(s)) return parseInt(s, 10)
+  if (s.includes('-')) {
+    const parts = s.split('-')
+    return parseInt(parts[parts.length - 1], 10)
+  }
+  if (s.includes('/')) {
+    const parts = s.split('/')
+    // assume d/m/y format
+    return parseInt(parts[0], 10)
+  }
+  return null
+}

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import { parseNum, parseDate, calcCat, today } from '../lib/utils'
 
@@ -102,15 +102,76 @@ export function AppProvider({ children }) {
   }, [showToast])
 
   const saveGestion = useCallback(async (gestion) => {
-    const { error } = await sb.from('gestiones').insert(gestion)
+    // insert row and return new record (with id)
+    const { error, data } = await sb.from('gestiones').insert(gestion).select()
     if (error) { showToast('Error: ' + error.message, 'err'); return false }
-    setGestiones(prev => [gestion, ...prev])
+    // prefer the record returned by Supabase (including generated id)
+    setGestiones(prev => data && data[0] ? [data[0], ...prev] : [gestion, ...prev])
     showToast('✓ Gestión guardada', 'ok')
     return true
   }, [showToast])
 
+  // helpers for editing/deleting gestiones
+  const updateGestion = useCallback(async (id, updates) => {
+    const { error } = await sb.from('gestiones').update(updates).eq('id', id)
+    if (error) { showToast('Error: ' + error.message, 'err'); return false }
+    setGestiones(prev => prev.map(g => (g.id === id ? { ...g, ...updates } : g)))
+    showToast('✓ Gestión actualizada', 'ok')
+    return true
+  }, [showToast])
+
+  const deleteGestion = useCallback(async (id) => {
+    const { error } = await sb.from('gestiones').delete().eq('id', id)
+    if (error) { showToast('Error: ' + error.message, 'err'); return false }
+    setGestiones(prev => prev.filter(g => g.id !== id))
+    showToast('✓ Gestión eliminada', 'ok')
+    return true
+  }, [showToast])
+
+  // compute reusable portfolio statistics
+  const stats = useMemo(() => {
+    const totalCap = cartera.reduce((s, r) => s + (r.saldocapit || 0), 0)
+    const enMora = cartera.filter(r => ['B','C','D','E'].includes(r.categoriaf))
+    const saldoMora = enMora.reduce((s, r) => s + (r.saldocapit || 0), 0)
+    const pctMora   = totalCap ? (saldoMora / totalCap * 100).toFixed(2) : '0.00'
+    const saldoPoner = cartera
+      .filter(r => (r.diasmora || 0) > 0)
+      .reduce((s, r) => s + (r.saldoponer || 0), 0)
+    const avgDiasMora = cartera.length ? (cartera.reduce((s, r) => s + (r.diasmora || 0), 0) / cartera.length).toFixed(1) : '0.0'
+    const avgSaldo = cartera.length ? Math.round(totalCap / cartera.length) : 0
+    const catData = ['A','B','C','D','E'].map(cat => ({
+      cat,
+      count: cartera.filter(r => r.categoriaf === cat).length,
+      saldo: cartera.filter(r => r.categoriaf === cat).reduce((s, r) => s + (r.saldocapit || 0), 0),
+    }))
+    return {
+      totalCap,
+      enMora,
+      saldoMora,
+      pctMora,
+      saldoPoner,
+      avgDiasMora,
+      avgSaldo,
+      catData,
+    }
+  }, [cartera])
+
   return (
-    <AppCtx.Provider value={{ cartera, gestiones, fechaCorte, user, setUser, toast, showToast, loadData, processCSV, saveGestion }}>
+    <AppCtx.Provider value={{
+      cartera,
+      gestiones,
+      fechaCorte,
+      user,
+      setUser,
+      toast,
+      showToast,
+      loadData,
+      processCSV,
+      saveGestion,
+      updateGestion,
+      deleteGestion,
+      stats,
+    }}>
       {children}
     </AppCtx.Provider>
   )

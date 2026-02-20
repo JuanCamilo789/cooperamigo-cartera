@@ -81,6 +81,8 @@ function AppShell() {
   )
 }
 
+import ErrorBoundary from './components/ErrorBoundary'
+
 function AppWithAuth() {
   const [authed, setAuthed]     = useState(false)
   const [checking, setChecking] = useState(true)
@@ -104,7 +106,11 @@ function AppWithAuth() {
   )
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />
-  return <AppShell />
+  return (
+    <ErrorBoundary>
+      <AppShell />
+    </ErrorBoundary>
+  )
 }
 
 export default function App() {

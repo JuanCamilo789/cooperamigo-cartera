@@ -1,59 +1,40 @@
+import React from 'react'
 import { useApp } from '../lib/AppContext'
-import { cop, fmtDate, today } from '../lib/utils'
-
-const KPI = ({ label, value, sub, accent }) => {
-  const accentMap = {
-    blue:  { bar: 'from-brand-400 to-blue-300',  val: 'text-brand-600' },
-    red:   { bar: 'from-red-400 to-rose-300',     val: 'text-red-500' },
-    amber: { bar: 'from-amber-400 to-yellow-300', val: 'text-amber-600' },
-    green: { bar: 'from-emerald-400 to-teal-300', val: 'text-emerald-600' },
-    cyan:  { bar: 'from-cyan-400 to-sky-300',     val: 'text-cyan-600' },
-  }
-  const a = accentMap[accent] ?? accentMap.blue
-  return (
-    <div className="kpi-card">
-      <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${a.bar}`} />
-      <p className="font-mono text-[9px] tracking-[1.5px] uppercase text-slate-400 mb-2">{label}</p>
-      <p className={`font-display font-bold text-2xl tracking-tight leading-none ${a.val}`}>{value}</p>
-      {sub && <p className="font-mono text-[11px] text-slate-400 mt-1.5">{sub}</p>}
-    </div>
-  )
-}
-
+import { cop, fmtDate, today, diaDeFecha } from '../lib/utils'
+import KPI from '../components/KPI'
 export default function Dashboard({ onNav }) {
-  const { cartera, processCSV, fechaCorte } = useApp()
+  const { cartera, processCSV, fechaCorte, stats } = useApp()
+  const {
+    totalCap = 0,
+    enMora = [],
+    saldoMora = 0,
+    pctMora = '0.00',
+    saldoPoner = 0,
+    catData = [],
+  } = stats || {}
+  React.useEffect(() => {
+    console.log('Dashboard render', { length: cartera.length, stats })
+  }, [cartera, stats])
 
   // ── MÉTRICAS CORRECTAS ──────────────────────────────────────────────
+  // stats already destructured above with defaults
 
-  // Cartera total
-  const totalCap = cartera.reduce((s, r) => s + (r.saldocapit || 0), 0)
-
-  // % Mora = saldo de categorías B+C+D+E / saldo total * 100
-  const enMora    = cartera.filter(r => ['B','C','D','E'].includes(r.categoriaf))
-  const saldoMora = enMora.reduce((s, r) => s + (r.saldocapit || 0), 0)
-  const pctMora   = totalCap ? (saldoMora / totalCap * 100).toFixed(2) : '0.00'
-
-  // Saldo por ponerse al día = suma saldoponer de quienes tienen diasmora > 0
-  const saldoPoner = cartera
-    .filter(r => (r.diasmora || 0) > 0)
-    .reduce((s, r) => s + (r.saldoponer || 0), 0)
-
-  // Cobros hoy: raportes es el DÍA DEL MES de pago recurrente
-  // Si raportes == día de hoy → ese crédito cobra hoy
-  // Fallback: usar el día de fechadesem si no hay raportes
+  // Cobros hoy logic remains here
   const diaHoy = new Date().getDate()
   const cobrosHoy = cartera.filter(r => {
-    if (r.raportes) return Number(r.raportes) === diaHoy
-    if (r.fechadesem) return String(r.fechadesem).split('-')[2] && parseInt(String(r.fechadesem).split('-')[2]) === diaHoy
+    // interpretar raportes si es día numérico válido
+    const rp = diaDeFecha(r.raportes)
+    if (rp !== null) {
+      return rp === diaHoy
+    }
+    // fallback a fecha de desembolso / vencimiento
+    const fd = diaDeFecha(r.fechadesem)
+    if (fd !== null) {
+      return fd === diaHoy
+    }
     return false
   })
 
-  // Distribución por categoría
-  const catData = ['A','B','C','D','E'].map(cat => ({
-    cat,
-    count: cartera.filter(r => r.categoriaf === cat).length,
-    saldo: cartera.filter(r => r.categoriaf === cat).reduce((s, r) => s + (r.saldocapit || 0), 0),
-  }))
   const catBarColor  = { A:'bg-emerald-400', B:'bg-amber-400', C:'bg-orange-400', D:'bg-red-400', E:'bg-red-600' }
   const catTextColor = { A:'text-emerald-700', B:'text-amber-700', C:'text-orange-700', D:'text-red-600', E:'text-red-700' }
 
@@ -132,7 +113,7 @@ export default function Dashboard({ onNav }) {
         <KPI
           label="Por Ponerse al Día"
           value={cop(saldoPoner)}
-          sub={`${enMora.length} créditos con mora`}
+          sub={`${(stats?.enMora?.length||0)} créditos con mora`}
           accent="amber"
         />
         <KPI

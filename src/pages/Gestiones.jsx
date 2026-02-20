@@ -5,10 +5,12 @@ import Modal from '../components/Modal'
 import DataTable from '../components/DataTable'
 
 export default function Gestiones({ prefill }) {
-  const { gestiones, cartera, saveGestion } = useApp()
+  const { gestiones, cartera, saveGestion, updateGestion, deleteGestion } = useApp()
   const [search, setSearch]   = useState('')
   const [fRes, setFRes]       = useState('')
+  const [fGestor, setFGestor] = useState('')
   const [open, setOpen]       = useState(!!prefill)
+  const [editingId, setEditingId] = useState(null)
   const [form, setForm]       = useState({
     pagare: prefill?.pagare || '',
     nombre: prefill?.nombre || '',
@@ -24,6 +26,7 @@ export default function Gestiones({ prefill }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const openModal = (r = null) => {
+    setEditingId(r?.id || null)
     setForm({
       pagare: r?.pagare || '',
       nombre: r?.nombre || '',
@@ -33,7 +36,7 @@ export default function Gestiones({ prefill }) {
       compromiso: '',
       monto: '',
       obs: '',
-      gestor: '',
+      gestor: r?.gestor || '',
     })
     setOpen(true)
   }
@@ -41,7 +44,7 @@ export default function Gestiones({ prefill }) {
   const handleSave = async () => {
     if (!form.pagare) return
     const c = cartera.find(r => r.pagare === form.pagare)
-    const ok = await saveGestion({
+    const payload = {
       pagare: form.pagare,
       cedulasoci: c?.cedulasoci || null,
       nombre_deudor: form.nombre || c?.nombre || null,
@@ -52,8 +55,23 @@ export default function Gestiones({ prefill }) {
       monto_comprometido: parseFloat(form.monto) || null,
       observaciones: form.obs || null,
       gestor: form.gestor || null,
-    })
-    if (ok) setOpen(false)
+    }
+    let ok
+    if (editingId) {
+      ok = await updateGestion(editingId, payload)
+    } else {
+      ok = await saveGestion(payload)
+    }
+    if (ok) {
+      setOpen(false)
+      setEditingId(null)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!id) return
+    if (!confirm('¿Eliminar esta gestión?')) return
+    await deleteGestion(id)
   }
 
   const filtered = useMemo(() => {
@@ -61,9 +79,10 @@ export default function Gestiones({ prefill }) {
     return gestiones.filter(g => {
       if (q && !g.pagare?.includes(q) && !g.nombre_deudor?.toLowerCase().includes(q)) return false
       if (fRes && g.resultado !== fRes) return false
+      if (fGestor && g.gestor !== fGestor) return false
       return true
     })
-  }, [gestiones, search, fRes])
+  }, [gestiones, search, fRes, fGestor])
 
   const resBadge = {
     'Pago realizado':    'bg-emerald-50 text-emerald-700',
@@ -87,6 +106,13 @@ export default function Gestiones({ prefill }) {
     { key: 'fecha_compromiso', label: 'Compromiso', render: g => <span className="font-mono text-xs">{fmtDate(g.fecha_compromiso)}</span> },
     { key: 'observaciones',  label: 'Observaciones', render: g => <span className="text-xs text-slate-500 max-w-xs truncate block">{g.observaciones || '—'}</span> },
     { key: 'gestor',         label: 'Gestor',        render: g => <span className="text-sm">{g.gestor || '—'}</span> },
+    { key: 'acciones',       label: '',             render: g => (
+        <div className="inline-flex gap-1">
+          <button onClick={() => openModal(g)} className="btn-outline btn-xs">Editar</button>
+          <button onClick={() => handleDelete(g.id)} className="btn-outline btn-xs text-red-600">Borrar</button>
+        </div>
+      )
+    },
   ]
 
   const inputCls = 'w-full bg-surface-50 border border-surface-200 text-slate-800 placeholder-slate-400 rounded-lg px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10'
@@ -105,6 +131,10 @@ export default function Gestiones({ prefill }) {
           <select value={fRes} onChange={e => setFRes(e.target.value)} className="bg-white border border-surface-200 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer">
             <option value="">Todos los resultados</option>
             {Object.keys(resBadge).map(r => <option key={r}>{r}</option>)}
+          </select>
+          <select value={fGestor} onChange={e => setFGestor(e.target.value)} className="bg-white border border-surface-200 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer">
+            <option value="">Todos los gestores</option>
+            {Array.from(new Set(gestiones.map(g => g.gestor).filter(Boolean))).map(g => <option key={g}>{g}</option>)}
           </select>
           <span className="ml-auto font-mono text-xs text-slate-400">{filtered.length} gestiones</span>
         </div>
@@ -155,7 +185,7 @@ export default function Gestiones({ prefill }) {
           <input className={inputCls} value={form.gestor} onChange={e => set('gestor', e.target.value)} placeholder="Nombre del gestor" />
         </div>
         <div className="flex gap-3 justify-end mt-6">
-          <button onClick={() => setOpen(false)} className="btn-outline">Cancelar</button>
+          <button onClick={() => { setOpen(false); setEditingId(null) }} className="btn-outline">Cancelar</button>
           <button onClick={handleSave} className="btn-primary">Guardar gestión</button>
         </div>
       </Modal>

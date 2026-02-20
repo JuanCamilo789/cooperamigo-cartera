@@ -1,5 +1,6 @@
+import { useState, useMemo } from 'react'
 import { useApp } from '../lib/AppContext'
-import { cop, fmtDate, calcCat, dlCSV } from '../lib/utils'
+import { cop, fmtDate, calcCat, dlCSV, diaDeFecha } from '../lib/utils'
 import DataTable from '../components/DataTable'
 
 // ───── ALERTAS ─────
@@ -61,31 +62,43 @@ export function Alertas() {
   )
 }
 
-function diaDeFecha(fechaStr) {
-  if (!fechaStr) return null
-  const s = String(fechaStr)
-  if (s.includes('-')) return parseInt(s.split('-')[2], 10)
-  if (s.includes('/')) return parseInt(s.split('/')[0], 10)
-  return null
-}
-
 // ───── COBROS HOY ─────
 // raportes = día del mes en que vence el pago recurrente de cada crédito
 export function CobrosHoy({ onNav }) {
   const { cartera } = useApp()
   const diaHoy = new Date().getDate()
 
-  const cobros = cartera.filter(r => {
-    // Primero intentar con raportes (día de pago mensual/quincenal)
-    if (r.raportes !== null && r.raportes !== undefined) {
-      return Number(r.raportes) === diaHoy
-    }
-    // Fallback: usar el día de fechadesem
-    if (r.fechadesem) {
-      return diaDeFecha(r.fechadesem) === diaHoy
-    }
-    return false
-  }).sort((a,b) => b.anualidad - a.anualidad)
+  const [search, setSearch] = useState('')
+  const [formaPago, setFormaPago] = useState('')
+  const [periodo, setPeriodo] = useState('')
+
+  const cobros = useMemo(() => {
+    const base = cartera.filter(r => {
+      // interpretar raportes si es día numérico válido
+      const rp = diaDeFecha(r.raportes)
+      if (rp !== null) {
+        return rp === diaHoy
+      }
+      // fallback a fecha de desembolso / vencimiento
+      const fd = diaDeFecha(r.fechadesem)
+      if (fd !== null) {
+        return fd === diaHoy
+      }
+      return false
+    }).sort((a,b) => b.anualidad - a.anualidad)
+
+    return base.filter(r => {
+      if (search) {
+        const s = search.toLowerCase()
+        if (!((r.pagare||'').toLowerCase().includes(s) || (r.nombre||'').toLowerCase().includes(s))) {
+          return false
+        }
+      }
+      if (formaPago && r.formapago !== formaPago) return false
+      if (periodo && r.periodocap !== periodo) return false
+      return true
+    })
+  }, [cartera, diaHoy, search, formaPago, periodo])
 
   const totalEsperado = cobros.reduce((s,r) => s+(r.anualidad||0), 0)
 
@@ -99,13 +112,31 @@ export function CobrosHoy({ onNav }) {
 
   return (
     <div className="page-enter space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="bg-brand-50 border border-brand-100 rounded-xl px-5 py-3">
-          <p className="font-mono text-xs text-brand-600">
-            <span className="font-bold text-base text-brand-700">{cobros.length}</span> cobros hoy (día {diaHoy}) ·{' '}
-            <span className="font-bold">{cop(totalEsperado)}</span> esperado
-          </p>
-        </div>
+      <div className="flex gap-3">
+        <input
+          type="text"
+          placeholder="Buscar por pagaré o nombre..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input-field flex-1"
+        />
+        <select value={formaPago} onChange={e => setFormaPago(e.target.value)} className="input-field">
+          <option value="">Forma de Pago</option>
+          <option value="T">Taquilla</option>
+          <option value="N">Nómina</option>
+        </select>
+        <select value={periodo} onChange={e => setPeriodo(e.target.value)} className="input-field">
+          <option value="">Período</option>
+          <option value="M">Mensual</option>
+          <option value="Q">Quincenal</option>
+        </select>
+      </div>
+
+      <div className="bg-brand-50 border border-brand-100 rounded-xl px-5 py-3">
+        <p className="font-mono text-xs text-brand-600">
+          <span className="font-bold text-base text-brand-700">{cobros.length}</span> cobros hoy (día {diaHoy}) ·{' '}
+          <span className="font-bold">{cop(totalEsperado)}</span> esperado
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-surface-200 shadow-card overflow-hidden">
@@ -113,13 +144,14 @@ export function CobrosHoy({ onNav }) {
           <thead>
             <tr>
               <th>Pagaré</th>
-              <th>Nombre</th>
-              <th>Cédula</th>
+              <th>Deudor</th>
               <th>Forma Pago</th>
               <th>Período</th>
+              <th>F. Desem.</th>
               <th className="text-right">Cuota</th>
-              <th>Mora</th>
-              <th>Cat</th>
+              <th className="text-right">Mora</th>
+              <th className="text-right">Saldo Poner</th>
+              <th>Estado</th>
               <th></th>
             </tr>
           </thead>
@@ -128,22 +160,40 @@ export function CobrosHoy({ onNav }) {
               const catCls = { A:'bg-emerald-50 text-emerald-700', B:'bg-amber-50 text-amber-700', C:'bg-orange-50 text-orange-600', D:'bg-red-50 text-red-600', E:'bg-red-100 text-red-700' }
               return (
                 <tr key={i}>
-                  <td className="font-mono text-xs">{r.pagare}</td>
-                  <td className="font-medium">{r.nombre}</td>
-                  <td className="font-mono text-xs">{r.cedulasoci}</td>
+                  <td className="font-mono text-xs font-semibold">{r.pagare}</td>
+                  <td>
+                    <div className="font-medium text-sm">{r.nombre}</div>
+                    <div className="font-mono text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                      {r.cedulasoci}
+                      <button
+                        onClick={() => navigator.clipboard.writeText(r.cedulasoci || '')}
+                        title="Copiar cédula"
+                        className="text-slate-400 hover:text-brand-600 transition-colors"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </td>
                   <td>
                     <span className={`inline-flex px-2 py-0.5 rounded font-mono text-xs ${r.formapago==='T' ? 'bg-blue-50 text-blue-600' : 'bg-cyan-50 text-cyan-600'}`}>
                       {r.formapago==='T' ? 'Taquilla' : r.formapago==='N' ? 'Nómina' : r.formapago||'—'}
                     </span>
                   </td>
                   <td className="font-mono text-xs">{r.periodocap==='M' ? 'Mensual' : r.periodocap==='Q' ? 'Quincenal' : r.periodocap||'—'}</td>
+                  <td className="font-mono text-xs">{r.fechadesem || '—'}</td>
                   <td className="text-right font-mono text-sm font-bold text-brand-600">{cop(r.anualidad)}</td>
                   <td>
-                    {(r.diasmora||0) > 0
-                      ? <span className="inline-flex px-2 py-0.5 rounded-full font-mono text-xs bg-red-50 text-red-600">{r.diasmora}d</span>
-                      : <span className="inline-flex px-2 py-0.5 rounded-full font-mono text-xs bg-emerald-50 text-emerald-600">Al día</span>
-                    }
+                    <div className="text-right font-mono text-xs">
+                      {r.cuotasmora||0} cuota{((r.cuotasmora||0) === 1 ? '' : 's')}
+                    </div>
+                    <div className="text-right">
+                      {(r.diasmora||0) > 0
+                        ? <span className="inline-flex px-2 py-0.5 rounded-full font-mono text-xs bg-red-50 text-red-600">{r.diasmora}d</span>
+                        : <span className="inline-flex px-2 py-0.5 rounded-full font-mono text-xs bg-emerald-50 text-emerald-600">Al día</span>
+                      }
+                    </div>
                   </td>
+                  <td className="text-right font-mono text-xs">{cop(r.saldoponer)}</td>
                   <td>
                     <span className={`inline-flex items-center justify-center w-7 h-7 rounded font-mono text-xs font-bold ${catCls[r.categoriaf]||''}`}>
                       {r.categoriaf}
@@ -165,9 +215,25 @@ export function CobrosHoy({ onNav }) {
 // ───── VENCIDOS ─────
 export function Vencidos({ onNav }) {
   const { cartera } = useApp()
-  const vencidos = [...cartera]
-    .filter(r => (r.diasmora||0) > 0)
-    .sort((a,b) => (b.diasmora||0) - (a.diasmora||0))
+  const [search, setSearch] = useState('')
+  const [categoria, setCategoria] = useState('')
+
+  const vencidos = useMemo(() => {
+    const base = [...cartera]
+      .filter(r => (r.diasmora||0) > 0)
+      .sort((a,b) => (b.diasmora||0) - (a.diasmora||0))
+
+    return base.filter(r => {
+      if (search) {
+        const s = search.toLowerCase()
+        if (!((r.pagare||'').toLowerCase().includes(s) || (r.nombre||'').toLowerCase().includes(s) || (r.cedulasoci||'').toLowerCase().includes(s))) {
+          return false
+        }
+      }
+      if (categoria && r.categoriaf !== categoria) return false
+      return true
+    })
+  }, [cartera, search, categoria])
 
   const catCls = { A:'bg-emerald-50 text-emerald-700', B:'bg-amber-50 text-amber-700', C:'bg-orange-50 text-orange-600', D:'bg-red-50 text-red-600', E:'bg-red-100 text-red-700' }
 
@@ -201,7 +267,25 @@ export function Vencidos({ onNav }) {
   ]
 
   return (
-    <div className="page-enter">
+    <div className="page-enter space-y-4">
+      <div className="flex gap-3">
+        <input
+          type="text"
+          placeholder="Buscar por pagaré, nombre o cédula..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input-field flex-1"
+        />
+        <select value={categoria} onChange={e => setCategoria(e.target.value)} className="input-field">
+          <option value="">Todas las Categorías</option>
+          <option value="A">A (Al día)</option>
+          <option value="B">B (1-30 días)</option>
+          <option value="C">C (31-60 días)</option>
+          <option value="D">D (61-90 días)</option>
+          <option value="E">E (+91 días)</option>
+        </select>
+      </div>
+
       <div className="bg-white rounded-xl border border-surface-200 shadow-card overflow-hidden">
         <DataTable columns={columns} data={vencidos} emptyIcon="✅" emptyText="No hay créditos vencidos" />
       </div>
@@ -214,6 +298,8 @@ export function Vencidos({ onNav }) {
 // Si con esa proyección cambia de categoría → está en rodamiento.
 export function Rodamiento({ onNav }) {
   const { cartera } = useApp()
+  const [search, setSearch] = useState('')
+  const [transicion, setTransicion] = useState('')
 
   const hoy    = new Date()
   // Último día del mes actual
@@ -221,15 +307,31 @@ export function Rodamiento({ onNav }) {
   // Días corridos que faltan (incluyendo hoy)
   const diasRest = Math.ceil((finMes - hoy) / 864e5)
 
-  const rod = cartera
-    .filter(r => (r.diasmora||0) > 0)
-    .map(r => ({
-      ...r,
-      diasFin: (r.diasmora||0) + diasRest,
-      catFin:  calcCat((r.diasmora||0) + diasRest),
-    }))
-    .filter(r => r.catFin !== r.categoriaf)
-    .sort((a,b) => b.saldocapit - a.saldocapit)
+  const rod = useMemo(() => {
+    const base = cartera
+      .filter(r => (r.diasmora||0) > 0)
+      .map(r => ({
+        ...r,
+        diasFin: (r.diasmora||0) + diasRest,
+        catFin:  calcCat((r.diasmora||0) + diasRest),
+      }))
+      .filter(r => r.catFin !== r.categoriaf)
+      .sort((a,b) => b.saldocapit - a.saldocapit)
+
+    return base.filter(r => {
+      if (search) {
+        const s = search.toLowerCase()
+        if (!((r.pagare||'').toLowerCase().includes(s) || (r.nombre||'').toLowerCase().includes(s))) {
+          return false
+        }
+      }
+      if (transicion) {
+        const [from, to] = transicion.split('→')
+        if (r.categoriaf !== from || r.catFin !== to) return false
+      }
+      return true
+    })
+  }, [cartera, diasRest, search, transicion])
 
   // Resumen de transiciones
   const transiciones = ['A→B','B→C','C→D','D→E'].map(t => {
@@ -282,6 +384,24 @@ export function Rodamiento({ onNav }) {
           Cierre del mes: <strong>{finMes.toLocaleDateString('es-CO')}</strong> ·
           Días restantes: <strong className="text-brand-600">{diasRest}</strong>
         </p>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-3">
+        <input
+          type="text"
+          placeholder="Buscar por pagaré o nombre..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input-field flex-1"
+        />
+        <select value={transicion} onChange={e => setTransicion(e.target.value)} className="input-field">
+          <option value="">Todas las Transiciones</option>
+          <option value="A→B">A → B</option>
+          <option value="B→C">B → C</option>
+          <option value="C→D">C → D</option>
+          <option value="D→E">D → E</option>
+        </select>
       </div>
 
       {/* Resumen de transiciones */}
@@ -351,7 +471,7 @@ export function Reportes() {
         const diaHoy = hoy.getDate()
         const d = cartera.filter(r => {
           if (r.raportes !== null && r.raportes !== undefined) return Number(r.raportes) === diaHoy
-          if (r.fechadesem) return new Date(r.fechadesem).getUTCDate() === diaHoy
+          if (r.fechadesem) return parseInt(String(r.fechadesem).split("-")[2], 10) === diaHoy
           return false
         })
         const h = ['PAGARE','NOMBRE','CEDULASOCI','ANUALIDAD','SALDOPONER','DIASMORA','CATEGORIAF','NOMBREDEST','FORMAPAGO','RAPORTES']
