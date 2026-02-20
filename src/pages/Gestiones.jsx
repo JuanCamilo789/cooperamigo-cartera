@@ -6,16 +6,16 @@ import DataTable from '../components/DataTable'
 
 export default function Gestiones({ prefill }) {
   const { gestiones, cartera, saveGestion, updateGestion, deleteGestion } = useApp()
-  const [search, setSearch]   = useState('')
-  const [fRes, setFRes]       = useState('')
+  const [search, setSearch] = useState('')
+  const [fRes, setFRes] = useState('')
   const [fGestor, setFGestor] = useState('')
-  const [open, setOpen]       = useState(!!prefill)
+  const [open, setOpen] = useState(!!prefill)
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm]       = useState({
+  const [form, setForm] = useState({
     pagare: prefill?.pagare || '',
     nombre: prefill?.nombre || '',
-    fecha:  today(),
-    canal:  'Llamada telefónica',
+    fecha: today(),
+    canal: 'Llamada telefónica',
     resultado: 'Sin respuesta',
     compromiso: '',
     monto: '',
@@ -27,19 +27,36 @@ export default function Gestiones({ prefill }) {
 
   const openModal = (r = null) => {
     setEditingId(r?.id || null)
-    setForm({
-      pagare: r?.pagare || '',
-      nombre: r?.nombre || '',
-      fecha:  today(),
-      canal:  'Llamada telefónica',
-      resultado: 'Sin respuesta',
-      compromiso: '',
-      monto: '',
-      obs: '',
-      gestor: r?.gestor || '',
-    })
+    if (r?.id) {
+      // Edición: cargar todos los datos existentes del registro
+      setForm({
+        pagare: r.pagare || '',
+        nombre: r.nombre_deudor || r.nombre || '',
+        fecha: r.fecha_gestion || today(),
+        canal: r.canal || 'Llamada telefónica',
+        resultado: r.resultado || 'Sin respuesta',
+        compromiso: r.fecha_compromiso || '',
+        monto: r.monto_comprometido != null ? String(r.monto_comprometido) : '',
+        obs: r.observaciones || '',
+        gestor: r.gestor || '',
+      })
+    } else {
+      // Nueva gestión: valores por defecto
+      setForm({
+        pagare: r?.pagare || '',
+        nombre: r?.nombre || '',
+        fecha: today(),
+        canal: 'Llamada telefónica',
+        resultado: 'Sin respuesta',
+        compromiso: '',
+        monto: '',
+        obs: '',
+        gestor: '',
+      })
+    }
     setOpen(true)
   }
+
 
   const handleSave = async () => {
     if (!form.pagare) return
@@ -85,28 +102,39 @@ export default function Gestiones({ prefill }) {
   }, [gestiones, search, fRes, fGestor])
 
   const resBadge = {
-    'Pago realizado':    'bg-emerald-50 text-emerald-700',
+    'Pago realizado': 'bg-emerald-50 text-emerald-700',
     'Pago comprometido': 'bg-blue-50 text-blue-600',
-    'Acuerdo de pago':   'bg-cyan-50 text-cyan-600',
-    'Sin respuesta':     'bg-slate-100 text-slate-500',
-    'No localizado':     'bg-amber-50 text-amber-700',
-    'Negativa de pago':  'bg-red-50 text-red-600',
+    'Acuerdo de pago': 'bg-cyan-50 text-cyan-600',
+    'Sin respuesta': 'bg-slate-100 text-slate-500',
+    'No localizado': 'bg-amber-50 text-amber-700',
+    'Negativa de pago': 'bg-red-50 text-red-600',
     'Número equivocado': 'bg-orange-50 text-orange-600',
   }
 
   const columns = [
-    { key: 'fecha_gestion',  label: 'Fecha',       render: g => <span className="font-mono text-xs">{fmtDate(g.fecha_gestion)}</span> },
-    { key: 'pagare',         label: 'Pagaré',       render: g => <span className="font-mono text-xs">{g.pagare}</span> },
-    { key: 'nombre_deudor',  label: 'Nombre',       render: g => <span className="font-medium">{g.nombre_deudor || '—'}</span> },
-    { key: 'canal',          label: 'Canal',         render: g => <span className="text-sm text-slate-600">{g.canal}</span> },
-    { key: 'resultado',      label: 'Resultado',    render: g => (
+    { key: 'fecha_gestion', label: 'Fecha', render: g => <span className="font-mono text-xs">{fmtDate(g.fecha_gestion)}</span> },
+    { key: 'pagare', label: 'Pagaré', render: g => <span className="font-mono text-xs">{g.pagare}</span> },
+    { key: 'nombre_deudor', label: 'Nombre', render: g => <span className="font-medium">{g.nombre_deudor || '—'}</span> },
+    { key: 'canal', label: 'Canal', render: g => <span className="text-sm text-slate-600">{g.canal}</span> },
+    {
+      key: 'resultado', label: 'Resultado', render: g => (
         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-mono ${resBadge[g.resultado] || 'bg-slate-50 text-slate-500'}`}>{g.resultado}</span>
       )
     },
     { key: 'fecha_compromiso', label: 'Compromiso', render: g => <span className="font-mono text-xs">{fmtDate(g.fecha_compromiso)}</span> },
-    { key: 'observaciones',  label: 'Observaciones', render: g => <span className="text-xs text-slate-500 max-w-xs truncate block">{g.observaciones || '—'}</span> },
-    { key: 'gestor',         label: 'Gestor',        render: g => <span className="text-sm">{g.gestor || '—'}</span> },
-    { key: 'acciones',       label: '',             render: g => (
+    {
+      key: 'monto_comprometido', label: 'Monto', render: g => (
+        <span className="font-mono text-xs font-medium">
+          {g.monto_comprometido != null
+            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(g.monto_comprometido)
+            : '—'}
+        </span>
+      )
+    },
+    { key: 'observaciones', label: 'Observaciones', render: g => <span className="text-xs text-slate-500 max-w-xs truncate block">{g.observaciones || '—'}</span> },
+    { key: 'gestor', label: 'Gestor', render: g => <span className="text-sm font-medium">{g.gestor || '—'}</span> },
+    {
+      key: 'acciones', label: '', render: g => (
         <div className="inline-flex gap-1">
           <button onClick={() => openModal(g)} className="btn-outline btn-xs">Editar</button>
           <button onClick={() => handleDelete(g.id)} className="btn-outline btn-xs text-red-600">Borrar</button>
@@ -117,7 +145,7 @@ export default function Gestiones({ prefill }) {
 
   const inputCls = 'w-full bg-surface-50 border border-surface-200 text-slate-800 placeholder-slate-400 rounded-lg px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10'
   const labelCls = 'block font-mono text-[10px] uppercase tracking-widest text-slate-400 mb-1.5'
-  const select   = `${inputCls} cursor-pointer`
+  const select = `${inputCls} cursor-pointer`
 
   return (
     <div className="page-enter">
@@ -158,7 +186,7 @@ export default function Gestiones({ prefill }) {
           <div>
             <label className={labelCls}>Canal</label>
             <select className={select} value={form.canal} onChange={e => set('canal', e.target.value)}>
-              {['Llamada telefónica','Visita domiciliaria','WhatsApp','Correo electrónico','Mensaje de texto','Carta','Presencial en oficina'].map(c => <option key={c}>{c}</option>)}
+              {['Llamada telefónica', 'Visita domiciliaria', 'WhatsApp', 'Correo electrónico', 'Mensaje de texto', 'Carta', 'Presencial en oficina'].map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
           <div>
